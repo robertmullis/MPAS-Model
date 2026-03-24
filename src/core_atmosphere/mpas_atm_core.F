@@ -616,13 +616,14 @@ module atm_core
 
    end subroutine atm_mpas_init_block
    
-
+   
    function atm_core_run_start(domain, block_ptr, dt, config_do_restart, &
-        config_restart_timestamp_name, diag_start_time, diag_stop_time, &
-        state, diag, diag_physics, mesh, input_start_time, input_stop_time, &
-        output_start_time, output_stop_time, config_apply_lbcs, &
-        currTime, timestamp, itimestep) &
-        result(ierr)
+      config_restart_timestamp_name, diag_start_time, diag_stop_time, &
+      state, diag, diag_physics, mesh, input_start_time, input_stop_time, &
+      output_start_time, output_stop_time, config_apply_lbcs, &
+      currTime, timestamp, itimestep) &
+      result(ierr)
+
       use mpas_timekeeping
       use mpas_kind_types
       use mpas_stream_manager
@@ -630,11 +631,13 @@ module atm_core
       use mpas_timer, only : mpas_timer_start, mpas_timer_stop
       use mpas_atm_boundaries, only : mpas_atm_update_bdy_tend
       use mpas_atm_diagnostics_manager, only : mpas_atm_diag_update, mpas_atm_diag_compute, mpas_atm_diag_reset
+   
       implicit none
+   
       type (domain_type), intent(inout) :: domain
       integer :: ierr
-
-      real (kind=RKIND), pointer, intent(out) :: dt
+   
+      real (kind=RKIND), intent(out) :: dt
       logical, pointer, intent(out) :: config_do_restart
       logical, pointer, intent(out) :: config_apply_lbcs
       type (block_type), pointer, intent(out) :: block_ptr
@@ -643,16 +646,10 @@ module atm_core
       character(len=StrKIND), intent(out) :: timeStamp
       character (len=StrKIND), pointer, intent(out) :: config_restart_timestamp_name
       integer, intent(out) :: itimestep
-      ! integer :: iounit
 
-      ! integer :: stream_dir
-      ! character(len=StrKIND) :: input_stream, read_time
+      type (mpas_pool_type), pointer, intent(out) :: state, diag, mesh, diag_physics
 
-      type (mpas_pool_type), pointer, intent(out) :: state, diag, diag_physics
-      type (mpas_pool_type), pointer, intent(out) :: mesh
-      ! type (mpas_pool_type), pointer, intent(out) :: tend, tend_physics
-      ! ! For timing information
-      ! real (kind=R8KIND) :: integ_start_time, integ_stop_time
+      ! For timing information
       real (kind=R8KIND), intent(out) :: diag_start_time, diag_stop_time
       real (kind=R8KIND), intent(out) :: input_start_time, input_stop_time
       real (kind=R8KIND), intent(out) :: output_start_time, output_stop_time
@@ -750,19 +747,20 @@ module atm_core
             block_ptr => block_ptr % next
          end do
       end if
-
+      itimestep = 1
    end function atm_core_run_start
 
 
    function atm_core_run_advance(domain, timestamp, block_ptr, &
-        config_apply_lbcs, input_start_time, &
-        input_stop_time, output_start_time, output_stop_time,&
-        input_stream, read_time, stream_dir, &
-        integ_start_time, integ_stop_time, &
-        diag_start_time, diag_stop_time, &
-        dt, itimestep, state, mesh, diag, diag_physics, &
-        tend, tend_physics, config_restart_timestamp_name) &
-        result(ierr)
+      config_apply_lbcs, input_start_time, &
+      input_stop_time, output_start_time, output_stop_time,&
+      input_stream, read_time, stream_dir, &
+      integ_start_time, integ_stop_time, &
+      diag_start_time, diag_stop_time, &
+      dt, itimestep, state, mesh, diag, diag_physics, &
+      tend, tend_physics, config_restart_timestamp_name) &
+      result(ierr)
+
       use mpas_timekeeping
       use mpas_kind_types
       use mpas_stream_manager
@@ -770,8 +768,9 @@ module atm_core
       use mpas_timer, only : mpas_timer_start, mpas_timer_stop
       use mpas_atm_boundaries, only : mpas_atm_update_bdy_tend
       use mpas_atm_diagnostics_manager, only : mpas_atm_diag_update, mpas_atm_diag_compute, mpas_atm_diag_reset
-
+   
       implicit none
+
       type (domain_type), intent(inout) :: domain
       character(len=StrKIND), intent(inout) :: timeStamp
       type (block_type), pointer, intent(inout) :: block_ptr
@@ -782,7 +781,7 @@ module atm_core
       integer, intent(inout) :: stream_dir
       real (kind=R8KIND), intent(inout) :: integ_start_time, integ_stop_time
       real (kind=R8KIND), intent(inout) :: diag_start_time, diag_stop_time
-      real (kind=RKIND), pointer, intent(inout) :: dt
+      real (kind=RKIND), intent(inout) :: dt
       integer, intent(inout) :: itimestep
       type (mpas_pool_type), pointer, intent(inout) :: state, mesh
       type (mpas_pool_type), pointer, intent(inout) :: diag, diag_physics
@@ -793,6 +792,10 @@ module atm_core
       type (MPAS_Time_Type) :: currTime
       integer :: iounit
 
+      ierr = 0
+
+      ! During integration, time level 1 stores the model state at the beginning of the
+      !   time step, and time level 2 stores the state advanced dt in time by timestep(...)
       currTime = mpas_get_clock_time(clock, MPAS_NOW, ierr)
       call mpas_get_time(curr_time=currTime, dateTimeString=timeStamp, ierr=ierr)         
 
@@ -861,7 +864,7 @@ module atm_core
       ! Move time level 2 fields back into time level 1 for next time step
       call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
       call mpas_pool_shift_time_levels(state)
-         
+      
       ! Advance clock before writing output
       itimestep = itimestep + 1
       call mpas_advance_clock(clock)
@@ -948,9 +951,7 @@ module atm_core
 
       call mpas_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_OUTPUT, ierr=ierr)
 
-   
    end function atm_core_run_advance
-
 
    function atm_core_run(domain) result(ierr)
 
@@ -967,7 +968,7 @@ module atm_core
       type (domain_type), intent(inout) :: domain
       integer :: ierr
 
-      real (kind=RKIND), pointer :: dt
+      real (kind=RKIND) :: dt
       logical, pointer :: config_do_restart
       logical, pointer :: config_apply_lbcs
       type (block_type), pointer :: block_ptr

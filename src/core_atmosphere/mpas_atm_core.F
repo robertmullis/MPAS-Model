@@ -642,9 +642,9 @@ module atm_core
       logical, pointer, intent(out) :: config_apply_lbcs
       type (block_type), pointer, intent(out) :: block_ptr
 
-      type (MPAS_Time_Type), intent(out) :: currTime
+      type (MPAS_Time_Type), pointer, intent(out) :: currTime
       character(len=StrKIND), intent(out) :: timeStamp
-      character (len=StrKIND), pointer, intent(out) :: config_restart_timestamp_name
+      character(len=StrKIND), pointer, intent(out) :: config_restart_timestamp_name
       integer, intent(out) :: itimestep
 
       type (mpas_pool_type), pointer, intent(out) :: state, diag, mesh, diag_physics
@@ -750,7 +750,6 @@ module atm_core
       itimestep = 1
    end function atm_core_run_start
 
-
    function atm_core_run_advance(domain, timestamp, block_ptr, &
       config_apply_lbcs, input_start_time, &
       input_stop_time, output_start_time, output_stop_time,&
@@ -774,7 +773,7 @@ module atm_core
       type (domain_type), intent(inout) :: domain
       character(len=StrKIND), intent(inout) :: timeStamp
       type (block_type), pointer, intent(inout) :: block_ptr
-      logical, pointer, intent(inout) :: config_apply_lbcs
+      logical, intent(inout) :: config_apply_lbcs
       real (kind=R8KIND), intent(inout) :: input_start_time, input_stop_time
       real (kind=R8KIND), intent(inout) :: output_start_time, output_stop_time
       character(len=StrKIND), intent(inout) :: input_stream, read_time
@@ -786,7 +785,7 @@ module atm_core
       type (mpas_pool_type), pointer, intent(inout) :: state, mesh
       type (mpas_pool_type), pointer, intent(inout) :: diag, diag_physics
       type (mpas_pool_type), pointer, intent(inout) :: tend, tend_physics
-      character (len=StrKIND), pointer, intent(in) :: config_restart_timestamp_name
+      character (len=StrKIND), intent(in) :: config_restart_timestamp_name
 
       integer :: ierr
       type (MPAS_Time_Type) :: currTime
@@ -973,9 +972,9 @@ module atm_core
       logical, pointer :: config_apply_lbcs
       type (block_type), pointer :: block_ptr
 
-      type (MPAS_Time_Type) :: currTime
+      type (MPAS_Time_Type), pointer :: currTime
       character(len=StrKIND) :: timeStamp
-      character (len=StrKIND), pointer :: config_restart_timestamp_name
+      character(len=StrKIND), pointer :: config_restart_timestamp_name
       integer :: itimestep
 
       integer :: stream_dir

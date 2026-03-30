@@ -1,6 +1,8 @@
 add_library(mpas_atm_nuopc_obj
   OBJECT
-  mpas_nuopc_shr.F90
+  mpas_atm_nuopc_shr.F90
+  mpas_atm_nuopc_flds.F90
+  mpas_atm_nuopc_types.F90
   mpas_atm_nuopc.F90
   )
 target_link_libraries(mpas_atm_nuopc_obj

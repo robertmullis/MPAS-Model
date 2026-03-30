@@ -11,12 +11,15 @@ module mpas_atm_nuopc
   use ESMF, only: ESMF_Clock, ESMF_ClockGet, ESMF_ClockPrint
   use ESMF, only: ESMF_Time, ESMF_TimePrint
   use ESMF, only: ESMF_TimeInterval, ESMF_TimeIntervalGet
-  use ESMF, only: ESMF_LogWrite
+  use ESMF, only: ESMF_LogWrite, ESMF_MeshWriteVTK
+  use ESMF, only: ESMF_Mesh, ESMF_MeshCreate, ESMF_FILEFORMAT_ESMFMESH
+  use ESMF, only: ESMF_DistGrid, ESMF_DistGridCreate
   use ESMF, only: ESMF_SUCCESS, ESMF_FAILURE
   use ESMF, only: ESMF_LOGMSG_INFO, ESMF_LOGMSG_ERROR
   use ESMF, only: ESMF_METHOD_INITIALIZE
   use ESMF, only: ESMF_KIND_R8
 
+  use NUOPC, only: NUOPC_CompAttributeGet
   use NUOPC, only: NUOPC_CompDerive, NUOPC_CompFilterPhaseMap
   use NUOPC, only: NUOPC_CompSetEntryPoint, NUOPC_CompSpecialize
 
@@ -25,11 +28,17 @@ module mpas_atm_nuopc
   use NUOPC_Model, only: model_routine_SS => SetServices
   use NUOPC_Model, only: model_label_Advance => label_Advance
 
-  use mpas_nuopc_shr, only: ChkErr
+  use mpas_atm_nuopc_shr, only: ChkErr
+  use mpas_atm_nuopc_types, only: mpas_cpl_type, mpas_cpl
+  use mpas_atm_nuopc_flds, only: advertise_fields
+  use mpas_atm_nuopc_flds, only: realize_fields
+  use mpas_atm_nuopc_flds, only: export_fields
+  use mpas_atm_nuopc_flds, only: state_diagnose
 
-  use mpas_kind_types, only: rkind, r8kind, strkind
-  use mpas_derived_types, only: core_type, domain_type
-  use mpas_derived_types, only: block_type, mpas_pool_type, mpas_time_type
+  use mpas_derived_types, only: block_type, mpas_pool_type
+  use mpas_pool_routines, only: mpas_pool_get_subpool
+  use mpas_pool_routines, only: mpas_pool_get_dimension
+  use mpas_pool_routines, only: mpas_pool_get_array
   use atm_core, only: atm_core_run_start, atm_core_run_advance
   use mpas_subdriver, only: mpas_init, mpas_finalize
 
@@ -53,38 +62,6 @@ module mpas_atm_nuopc
   !-----------------------------------------------------------------------------
   ! Private module data
   !-----------------------------------------------------------------------------
-
-  type mpas_cpl_type
-     type(core_type), pointer :: corelist => null()
-     type(domain_type), pointer :: domain => null()
-     type(block_type), pointer :: block_ptr => null()
-     real(kind=rkind) :: dt
-     logical, pointer :: config_do_restart => null()
-     character(len=strkind), pointer :: config_restart_timestamp_name => null()
-     real(kind=r8kind) :: diag_start_time
-     real(kind=r8kind) :: diag_stop_time
-     type(mpas_pool_type), pointer :: state => null()
-     type(mpas_pool_type), pointer :: diag => null()
-     type(mpas_pool_type), pointer :: diag_physics => null()
-     type(mpas_pool_type), pointer :: mesh => null()
-     real(kind=r8kind) :: input_start_time
-     real(kind=r8kind) :: input_stop_time
-     real(kind=r8kind) :: output_start_time
-     real(kind=r8kind) :: output_stop_time
-     real(kind=r8kind) :: integ_start_time
-     real(kind=r8kind) :: integ_stop_time
-     logical, pointer :: config_apply_lbcs => null()
-     type(mpas_time_type), pointer :: currTime => null()
-     type (mpas_pool_type), pointer :: tend => null()
-     type (mpas_pool_type), pointer :: tend_physics => null()
-     character(len=strkind) :: timestamp
-     integer :: itimestep
-     character(len=strkind) :: input_stream
-     character(len=strkind) :: read_time
-     integer :: stream_dir
-  end type mpas_cpl_type
-
-  type(mpas_cpl_type), target :: mpas_cpl
 
   character(len=*), parameter :: modName = "(mpas_atm_nuopc)"
 
@@ -181,6 +158,8 @@ contains
     ! Advertise coupling fields
     ! ---------------------
 
+    call advertise_fields(gcomp, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
@@ -198,8 +177,17 @@ contains
 
     ! local variables
     type(ESMF_VM) :: vm
-    integer :: petCount, localPet, comm
-    integer :: ierr
+    type(ESMF_Mesh) :: mesh
+    type(ESMF_DistGrid) :: distGrid
+    integer :: n, nCells, iCell
+    integer :: ierr, petCount, localPet, comm
+    integer , allocatable   :: gindex(:)
+    character(len=255) :: cvalue, mesh_atm
+    logical :: isSet, isPresent
+    type(block_type), pointer :: block => null()
+    type(mpas_pool_type), pointer :: meshPool
+    integer, dimension(:), pointer :: indexToCellID
+    integer, dimension(:), pointer :: nCellsArray
     character(len=*), parameter :: subname=trim(modName)//':(InitializeRealize) '
     !-------------------------------------------------------------------------------
 
@@ -252,25 +240,84 @@ contains
        return
     end if
 
+    block => mpas_cpl % domain % blocklist
+    call mpas_pool_get_subpool(block%structs, 'sfc_input', mpas_cpl%sfc_input)
+
     ! ---------------------
     ! Get coupling specific options
     ! ---------------------
+
+    call NUOPC_CompAttributeGet(gcomp, name='mesh_atm', value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    if (isPresent .and. isSet) then
+      mesh_atm = trim(cvalue)
+      call ESMF_LogWrite(trim(subname)//': MPAS ESMF mesh file = '//trim(mesh_atm), ESMF_LOGMSG_INFO)
+    else
+      call ESMF_LogWrite(trim(subname)//': MPAS ESMF mesh is required! Please set <mesh_atm>. Exiting ....', ESMF_LOGMSG_INFO)
+      rc = ESMF_FAILURE
+      return
+    end if
+
+    ! ---------------------
+    ! Determine the global index space needed for the distgrid
+    ! ---------------------
+
+    n = 0
+    block => mpas_cpl % domain % blocklist
+    do while (associated(block))
+       call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+       call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+       nCells = nCellsArray(1)
+       n = n + nCells
+       block => block % next
+    end do
+    allocate(gindex(n))
+
+    n = 0
+    block => mpas_cpl % domain % blocklist
+    do while (associated(block))
+       call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+       call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+       call mpas_pool_get_array(meshPool, 'indexToCellID', indexToCellID)
+       nCells = nCellsArray(1)
+       do iCell = 1, nCells
+          gindex(n+iCell) = indexToCellID(iCell)
+       enddo
+       n = n + nCells
+       block => block % next
+    end do
+
+    ! ---------------------
+    ! Create distGrid from global index array
+    ! ---------------------
+
+    distGrid = ESMF_DistGridCreate(arbSeqIndexList=gindex, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! ---------------------
     ! Create MPAS mesh
     ! ---------------------
 
+    mesh = ESMF_MeshCreate(filename=trim(mesh_atm), fileformat=ESMF_FILEFORMAT_ESMFMESH, elementDistgrid=Distgrid, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call ESMF_MeshWriteVTK(mesh, filename="mpas_mesh", rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
     ! ---------------------
     ! Realize coupling fields
     ! ---------------------
+
+    call realize_fields(importState, exportState, mesh, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! ---------------------
     ! Create export state
     ! ---------------------
 
-    ! ---------------------
-    ! Diagnostics
-    ! ---------------------
+    !call export_fields(exportState, rc)
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
@@ -325,6 +372,13 @@ contains
     !-----------------------
 
     call NUOPC_ModelGet(gcomp, modelClock=clock, importState=importState, exportState=exportState, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    !-----------------------
+    ! Receive updated data from import state
+    !-----------------------
+
+    call state_diagnose(importState, 'import', rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! ---------------------
@@ -415,7 +469,17 @@ contains
           return
        end if
     end do
-    
+
+    !----------------------
+    ! Put updated data to export state
+    !----------------------
+
+    call export_fields(exportState, mpas_cpl%domain, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call state_diagnose(exportState, 'export', rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
   end subroutine ModelAdvance

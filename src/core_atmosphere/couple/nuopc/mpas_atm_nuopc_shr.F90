@@ -1,4 +1,4 @@
-module mpas_nuopc_shr
+module mpas_atm_nuopc_shr
 
   !-----------------------------------------------------------------------------
   ! Coupling related shared routines
@@ -43,4 +43,4 @@ contains
     endif
   end function ChkErr
 
-end module mpas_nuopc_shr
+end module mpas_atm_nuopc_shr

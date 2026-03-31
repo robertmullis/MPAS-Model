@@ -26,6 +26,7 @@ module mpas_atm_nuopc
   use NUOPC_Model, only: SetVM
   use NUOPC_Model, only: NUOPC_ModelGet
   use NUOPC_Model, only: model_routine_SS => SetServices
+  use NUOPC_Model, only: model_label_SetClock => label_SetClock
   use NUOPC_Model, only: model_label_Advance => label_Advance
 
   use mpas_atm_nuopc_shr, only: ChkErr
@@ -33,6 +34,7 @@ module mpas_atm_nuopc
   use mpas_atm_nuopc_flds, only: advertise_fields
   use mpas_atm_nuopc_flds, only: realize_fields
   use mpas_atm_nuopc_flds, only: export_fields
+  use mpas_atm_nuopc_flds, only: import_fields
   use mpas_atm_nuopc_flds, only: state_diagnose
 
   use mpas_derived_types, only: block_type, mpas_pool_type
@@ -109,6 +111,10 @@ contains
     call NUOPC_CompSetEntryPoint(gcomp, ESMF_METHOD_INITIALIZE, &
          phaseLabelList=(/"IPDv01p3"/), userRoutine=InitializeRealize, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    !call NUOPC_CompSpecialize(gcomp, specLabel=label_SetClock, &
+    !     specRoutine=SetClock, rc=rc)
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     call NUOPC_CompSpecialize(gcomp, specLabel=model_label_Advance, &
          specRoutine=ModelAdvance, rc=rc)
@@ -312,16 +318,28 @@ contains
     call realize_fields(importState, exportState, mesh, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    ! ---------------------
-    ! Create export state
-    ! ---------------------
-
-    !call export_fields(exportState, rc)
-    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
   end subroutine InitializeRealize
+
+  !===============================================================================
+
+  subroutine SetClock(gcomp, rc)
+
+    ! input/output variables
+    type(ESMF_GridComp)  :: gcomp
+    integer, intent(out) :: rc
+
+    ! local variables
+    character(len=*), parameter :: subname=trim(modName)//':(SetClock) '
+    !-------------------------------------------------------------------------------
+
+    rc = ESMF_SUCCESS
+    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+
+    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+
+  end subroutine SetClock
 
   !===============================================================================
 
@@ -374,13 +392,6 @@ contains
     call NUOPC_ModelGet(gcomp, modelClock=clock, importState=importState, exportState=exportState, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    !-----------------------
-    ! Receive updated data from import state
-    !-----------------------
-
-    call state_diagnose(importState, 'import', rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
     ! ---------------------
     ! Calculate number of MPAS advance steps
     ! ---------------------
@@ -414,6 +425,16 @@ contains
 
        first_time = .false.
     end if
+
+    !----------------------
+    ! Ingest data from import state
+    !----------------------
+
+    call import_fields(importState, mpas_cpl%domain, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call state_diagnose(importState, 'import', rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! ---------------------
     ! Run MPAS

@@ -831,6 +831,7 @@ module atm_core
          if (stream_dir == MPAS_STREAM_INPUT .or. stream_dir == MPAS_STREAM_INPUT_OUTPUT) then
             if (MPAS_stream_mgr_ringing_alarms(domain % streamManager, streamID=input_stream, &
                                                direction=MPAS_STREAM_INPUT, ierr=ierr)) then
+               if (trim(input_stream) == 'surface') cycle 
                call mpas_timer_start('stream_input')
                call mpas_dmpar_get_time(input_start_time)
                call MPAS_stream_mgr_read(domain % streamManager, streamID=input_stream, whence=MPAS_STREAM_LATEST_BEFORE, &

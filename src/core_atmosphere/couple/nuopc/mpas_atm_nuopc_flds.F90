@@ -39,6 +39,7 @@ module mpas_atm_nuopc_flds
   public :: realize_fields
   public :: state_diagnose
   public :: export_fields
+  public :: import_fields
 
   !-----------------------------------------------------------------------------
   ! Public module data 
@@ -106,22 +107,22 @@ contains
        call NUOPC_Advertise(exportState, standardName=fldsFrMPAS(n)%stdname, &
             TransferOfferGeomObject='will provide', rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    enddo
+    end do
 
     !--------------------------------
     ! Advertise import fields
     !--------------------------------
 
     ! import from ocn 
-    !call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'sfc', 'sst', rc=rc)
-    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'sfc', 'sst', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! Now advertise import fields
-    !do n = 1, fldsToMPAS_num
-    !   call NUOPC_Advertise(importState, standardName=fldsToMPAS(n)%stdname, &
-    !        TransferOfferGeomObject='will provide', rc=rc)
-    !   if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    !enddo
+    do n = 1, fldsToMPAS_num
+       call NUOPC_Advertise(importState, standardName=fldsToMPAS(n)%stdname, &
+            TransferOfferGeomObject='will provide', rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end do
 
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
@@ -274,15 +275,15 @@ contains
     integer, intent(out) :: rc
 
     ! local variables
-    integer :: n, iCell, gCell, nCells, tCells, cell_offset
+    integer :: n, iCell, gCell, nCells, cell_offset
     type(ESMF_Field) :: lfield
     type(ESMF_StateItem_Flag) :: itemType
     type(block_type), pointer :: block => null()
     type(mpas_pool_type), pointer :: meshPool
     type(mpas_pool_type), pointer :: diagnosticsPool
     type(mpas_pool_type), pointer :: sfcInputPool
-    real(kind=rkind), dimension(:), pointer :: fldPtrInt
-    real(ESMF_KIND_R8), dimension(:), pointer :: fldPtrExt
+    real(kind=rkind), dimension(:), pointer :: fldPtr
+    real(ESMF_KIND_R8), dimension(:), pointer :: fldPtrExport
     integer, dimension(:), pointer :: nCellsArray
     character(len=*), parameter :: subname=trim(modName)//':(export_fields)'
     ! ----------------------------------------------
@@ -305,9 +306,9 @@ contains
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
           ! Query field pointer and initialize
-          call ESMF_FieldGet(lfield, farrayPtr=fldPtrExt, rc=rc)
+          call ESMF_FieldGet(lfield, farrayPtr=fldPtrExport, rc=rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          fldPtrExt(:) =1.0d20
+          fldPtrExport(:) = 1.0d20
 
           ! Query internal pointer and fill export field 
           cell_offset = 0
@@ -316,10 +317,10 @@ contains
              ! Access internal pointer
              if (trim(fldsFrMPAS(n)%internalgroup) == 'diag') then
                 call mpas_pool_get_subpool(block % structs, 'diag_physics', diagnosticsPool)
-                call mpas_pool_get_array(diagnosticsPool, trim(fldsFrMPAS(n)%internalname), fldptrInt)
+                call mpas_pool_get_array(diagnosticsPool, trim(fldsFrMPAS(n)%internalname), fldptr)
              else
                 call mpas_pool_get_subpool(block % structs, 'sfc_input', sfcInputPool)
-                call mpas_pool_get_array(sfcInputPool, trim(fldsFrMPAS(n)%internalname), fldptrInt)
+                call mpas_pool_get_array(sfcInputPool, trim(fldsFrMPAS(n)%internalname), fldptr)
              end if
              
              ! Get number of cells in decomposition block
@@ -330,7 +331,7 @@ contains
              ! Loop over cells and fill pointer of export field
              do iCell = 1, nCells
                 gCell = iCell + cell_offset
-                fldPtrExt(gCell) = dble(fldptrInt(iCell))
+                fldPtrExport(gCell) = dble(fldptr(iCell))
              end do
 
              ! Increment cell offset
@@ -341,7 +342,7 @@ contains
           end do
 
           ! Init pointers
-          nullify(fldPtrExt)
+          nullify(fldPtrExport)
        else
           call ESMF_LogWrite(subname//' '//trim(fldsFrMPAS(n)%stdname)//' is not in the state!', ESMF_LOGMSG_INFO)
        end if
@@ -350,6 +351,101 @@ contains
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
   end subroutine export_fields
+
+  !===============================================================================
+
+  subroutine import_fields(importState, domain, rc)
+
+    ! input/output variables
+    type(ESMF_State), intent(inout) :: importState
+    type(domain_type), intent(in), pointer :: domain
+    integer, intent(out) :: rc
+
+    ! local variables
+    integer :: n, iCell, gCell, nCells, cell_offset
+    type(ESMF_Field) :: lfield
+    type(ESMF_StateItem_Flag) :: itemType
+    type(block_type), pointer :: block => null()
+    type(mpas_pool_type), pointer :: meshPool
+    type(mpas_pool_type), pointer :: diagnosticsPool
+    type(mpas_pool_type), pointer :: sfcInputPool
+    real(kind=rkind), dimension(:), pointer:: xland
+    real(kind=rkind), dimension(:), pointer :: fldPtr
+    real(ESMF_KIND_R8), dimension(:), pointer :: fldPtrImport
+    integer, dimension(:), pointer :: nCellsArray
+    character(len=*), parameter :: subname=trim(modName)//':(import_fields)'
+    ! ----------------------------------------------
+
+    rc = ESMF_SUCCESS
+    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+
+    ! -----------------------
+    ! Loop over export fields and update them 
+    ! -----------------------
+
+    do n = 1, fldsToMPAS_num
+       ! Check field
+       call ESMF_StateGet(importState, itemName=trim(fldsToMPAS(n)%stdname), itemType=itemType, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       if (itemType == ESMF_STATEITEM_FIELD) then
+          ! Get field
+          call ESMF_StateGet(importState, itemName=trim(fldsToMPAS(n)%stdname), field=lfield, rc=rc)
+          if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+          ! Query field pointer and initialize
+          call ESMF_FieldGet(lfield, farrayPtr=fldPtrImport, rc=rc)
+          if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+          ! Query internal pointer and fill export field 
+          cell_offset = 0
+          block => domain % blocklist
+          do while (associated(block))
+             ! Access internal pointer
+             if (trim(fldsToMPAS(n)%internalgroup) == 'diag') then
+                call mpas_pool_get_subpool(block % structs, 'diag_physics', diagnosticsPool)
+                call mpas_pool_get_array(diagnosticsPool, trim(fldsToMPAS(n)%internalname), fldptr)
+             else
+                call mpas_pool_get_subpool(block % structs, 'sfc_input', sfcInputPool)
+                call mpas_pool_get_array(sfcInputPool, trim(fldsToMPAS(n)%internalname), fldptr)
+             end if
+
+             ! Get land sea mask
+             call mpas_pool_get_array(sfcInputPool, 'xland', xland)
+             
+             ! Get number of cells in decomposition block
+             call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+             call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+             nCells = nCellsArray(1)
+
+             ! Loop over cells and fill pointer of export field
+             print*, 'MPAS before = ', trim(fldsToMPAS(n)%internalname), minval(fldptr), maxval(fldptr)
+             print*, 'ESMF before = ', trim(fldsToMPAS(n)%internalname), minval(fldPtrImport), maxval(fldPtrImport)
+             do iCell = 1, nCells
+                gCell = iCell + cell_offset
+                if(xland(iCell) .gt. 1.5 .and. fldPtrImport(gCell) .lt. 1.0d10) then
+                   fldptr(iCell) = fldPtrImport(gCell)
+                end if
+             end do
+             print*, 'MPAS after = ', trim(fldsToMPAS(n)%internalname), minval(fldptr), maxval(fldptr)
+
+             ! Increment cell offset
+             cell_offset = cell_offset + nCells
+
+             ! Go to next block
+             block => block % next
+          end do
+
+          ! Init pointers
+          nullify(fldPtrImport)
+       else
+          call ESMF_LogWrite(subname//' '//trim(fldsToMPAS(n)%stdname)//' is not in the state!', ESMF_LOGMSG_INFO)
+       end if
+    end do
+
+    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+
+  end subroutine import_fields
 
   !===============================================================================
 

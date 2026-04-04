@@ -7,7 +7,7 @@ module mpas_atm_nuopc
   use ESMF, only: operator(+)
   use ESMF, only: ESMF_GridComp, ESMF_GridCompSetEntryPoint, ESMF_GridCompGet
   use ESMF, only: ESMF_VM, ESMF_VMGet
-  use ESMF, only: ESMF_State
+  use ESMF, only: ESMF_State, ESMF_StateGet, ESMF_Field
   use ESMF, only: ESMF_Clock, ESMF_ClockGet, ESMF_ClockPrint
   use ESMF, only: ESMF_Time, ESMF_TimePrint
   use ESMF, only: ESMF_TimeInterval, ESMF_TimeIntervalGet
@@ -19,7 +19,8 @@ module mpas_atm_nuopc
   use ESMF, only: ESMF_METHOD_INITIALIZE
   use ESMF, only: ESMF_KIND_R8
 
-  use NUOPC, only: NUOPC_CompAttributeGet
+  use NUOPC, only: NUOPC_CompAttributeGet, NUOPC_CompAttributeSet
+  use NUOPC, only: NUOPC_SetAttribute, NUOPC_IsUpdated
   use NUOPC, only: NUOPC_CompDerive, NUOPC_CompFilterPhaseMap
   use NUOPC, only: NUOPC_CompSetEntryPoint, NUOPC_CompSpecialize
 
@@ -246,9 +247,6 @@ contains
        return
     end if
 
-    block => mpas_cpl % domain % blocklist
-    call mpas_pool_get_subpool(block%structs, 'sfc_input', mpas_cpl%sfc_input)
-
     ! ---------------------
     ! Get coupling specific options
     ! ---------------------
@@ -350,12 +348,65 @@ contains
     integer, intent(out) :: rc
   
     ! local variables
+    integer :: n, fieldCount
+    character(len=64), allocatable :: fieldNameList(:)
+    type(ESMF_Field) :: field
+    type(ESMF_Clock) :: clock
+    type(ESMF_State) :: importState, exportState
     character(len=*), parameter :: subname=trim(modName)//':(DataInitialize) '
     !-------------------------------------------------------------------------------
   
     rc = ESMF_SUCCESS
     call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
 
+    !-----------------------
+    ! Query the Component for its clock, importState and exportState
+    !-----------------------
+
+    call NUOPC_ModelGet(gcomp, modelClock=clock, importState=importState, exportState=exportState, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    !-----------------------
+    ! Update export state
+    !-----------------------
+
+    call export_fields(exportState, mpas_cpl%domain, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call state_diagnose(exportState, 'export', rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    !-----------------------
+    ! Update attribute of the fields in export state
+    !-----------------------
+
+    call ESMF_StateGet(exportState, itemCount=fieldCount, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    allocate(fieldNameList(fieldCount))
+    call ESMF_StateGet(exportState, itemNameList=fieldNameList, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    do n = 1, fieldCount
+       call ESMF_StateGet(exportState, itemName=fieldNameList(n), field=field, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       call NUOPC_SetAttribute(field, name="Updated", value="true", rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end do
+
+    deallocate(fieldNameList)
+
+    !-----------------------
+    ! Check whether all Fields in the exportState are "Updated"
+    !-----------------------
+
+    if (NUOPC_IsUpdated(exportState)) then
+       call NUOPC_CompAttributeSet(gcomp, name="InitializeDataComplete", value="true", rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       call ESMF_LogWrite("MPAS - Initialize-Data-Dependency SATISFIED!!!", ESMF_LOGMSG_INFO)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end if
 
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 

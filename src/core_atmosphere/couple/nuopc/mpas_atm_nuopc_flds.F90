@@ -13,6 +13,7 @@ module mpas_atm_nuopc_flds
   use ESMF, only: ESMF_TYPEKIND_R8, ESMF_KIND_R8, ESMF_MAXSTR
   use ESMF, only: ESMF_Field, ESMF_FieldGet, ESMF_Mesh, ESMF_StateRemove
   use ESMF, only: ESMF_LogFoundError, ESMF_LOGERR_PASSTHRU
+  use ESMF, only: ESMF_UtilString2Double
 
   use NUOPC, only: NUOPC_Advertise, NUOPC_Realize, NUOPC_IsConnected
   use NUOPC_Model, only: NUOPC_ModelGet
@@ -54,7 +55,7 @@ module mpas_atm_nuopc_flds
      logical :: connected = .false.
   end type fldListType
 
-  integer, parameter :: fldsMax = 10
+  integer, parameter :: fldsMax = 20
   integer :: fldsToMPAS_num = 0
   integer :: fldsFrMPAS_num = 0
   type(fldListType) :: fldsToMPAS(fldsMax)
@@ -96,11 +97,51 @@ contains
     ! Advertise export fields
     !--------------------------------
 
-    ! export to ocn 
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_u10m', 'diag', 'u10', rc=rc)
+    ! export scalar
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_topo', 'sfc', 'ter', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_v10m', 'diag', 'v10', rc=rc)
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_z', 'const', '10.0', rc=rc) ! lowest layer height?
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_u', 'diag', 'u10', rc=rc) ! lowest layer u?
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_v', 'diag', 'v10', rc=rc) ! lowest layer v?
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_tbot', 'diag', 't2m', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_pbot', 'diag', 'mslp', rc=rc) ! lowest layer p?
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_shum', 'diag', 'q2', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_dens', 'diag', 'rho', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_ptem', 'diag', 't2m', rc=rc) ! theta?
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_pslv', 'diag', 'mslp', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! export flux
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swnet', 'diag', 'gsw', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_lwdn' , 'diag', 'lwdnb', rc=rc) ! all-sky downward, glw
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swdn' , 'diag', 'swdnb', rc=rc) ! all-sky downward
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_rainc', 'diag', 'rainncv', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_rainl', 'diag', '', rc=rc) ! large scale components
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_snowc', 'diag', 'snowncv', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_snowl', 'diag', '', rc=rc) ! large scale components
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndr', 'diag', 'swddir', rc=rc) ! need to confirm
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdr', 'diag', 'swddni', rc=rc) ! need to confirm
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndf', 'diag', 'swddif', rc=rc) ! need to confirm
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdf', 'diag', '', rc=rc) ! ?
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! Now advertise above export fields
     do n = 1, fldsFrMPAS_num
@@ -231,8 +272,7 @@ contains
 
     do n = 1, numflds
        stdname = trim(fldList(n)%stdname)
-       !if (NUOPC_IsConnected(state, fieldName=stdname)) then
-       if (.true.) then
+       if (NUOPC_IsConnected(state, fieldName=stdname)) then
           ! Create the field
           if (fldlist(n)%ungridded_lbound > 0 .and. fldlist(n)%ungridded_ubound > 0) then
              field = ESMF_FieldCreate(mesh, ESMF_TYPEKIND_R8, name=stdname, meshloc=ESMF_MESHLOC_ELEMENT, &
@@ -318,9 +358,19 @@ contains
              if (trim(fldsFrMPAS(n)%internalgroup) == 'diag') then
                 call mpas_pool_get_subpool(block % structs, 'diag_physics', diagnosticsPool)
                 call mpas_pool_get_array(diagnosticsPool, trim(fldsFrMPAS(n)%internalname), fldptr)
-             else
+                if (.not. associated(fldptr)) then
+                   ! TODO: Throw error and exit
+                   call ESMF_LogWrite(subname//' '//trim(fldsFrMPAS(n)%internalname)//&
+                      ' is not found in diag_physics!', ESMF_LOGMSG_INFO)
+                end if
+             else if (trim(fldsFrMPAS(n)%internalgroup) == 'sfc') then
                 call mpas_pool_get_subpool(block % structs, 'sfc_input', sfcInputPool)
                 call mpas_pool_get_array(sfcInputPool, trim(fldsFrMPAS(n)%internalname), fldptr)
+                if (.not. associated(fldptr)) then
+                   ! TODO: Throw error and exit
+                   call ESMF_LogWrite(subname//' '//trim(fldsFrMPAS(n)%internalname)//&
+                      ' is not found in sfc_input!', ESMF_LOGMSG_INFO)
+                end if
              end if
              
              ! Get number of cells in decomposition block
@@ -329,16 +379,27 @@ contains
              nCells = nCellsArray(1)
 
              ! Loop over cells and fill pointer of export field
-             do iCell = 1, nCells
-                gCell = iCell + cell_offset
-                fldPtrExport(gCell) = dble(fldptr(iCell))
-             end do
+             if (trim(fldsFrMPAS(n)%internalgroup) == 'const') then
+                fldPtrExport(:) = ESMF_UtilString2Double(trim(fldsFrMPAS(n)%internalname), rc=rc)
+                if (ChkErr(rc,__LINE__,u_FILE_u)) return
+             else
+                ! TODO: Following control can be removed once pointer checked in above and throw error
+                if (associated(fldptr)) then
+                   do iCell = 1, nCells
+                      gCell = iCell + cell_offset
+                      fldPtrExport(gCell) = dble(fldptr(iCell))
+                   end do
+                end if
+             end if
 
              ! Increment cell offset
              cell_offset = cell_offset + nCells
 
              ! Go to next block
              block => block % next
+
+             ! Nullify pointer
+             nullify(fldptr)
           end do
 
           ! Init pointers
@@ -419,15 +480,12 @@ contains
              nCells = nCellsArray(1)
 
              ! Loop over cells and fill pointer of export field
-             print*, 'MPAS before = ', trim(fldsToMPAS(n)%internalname), minval(fldptr), maxval(fldptr)
-             print*, 'ESMF before = ', trim(fldsToMPAS(n)%internalname), minval(fldPtrImport), maxval(fldPtrImport)
              do iCell = 1, nCells
                 gCell = iCell + cell_offset
                 if(xland(iCell) .gt. 1.5 .and. fldPtrImport(gCell) .lt. 1.0d10) then
                    fldptr(iCell) = fldPtrImport(gCell)
                 end if
              end do
-             print*, 'MPAS after = ', trim(fldsToMPAS(n)%internalname), minval(fldptr), maxval(fldptr)
 
              ! Increment cell offset
              cell_offset = cell_offset + nCells
@@ -490,8 +548,9 @@ contains
        endif
        call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
 
-       call ESMF_FieldWriteVTK(lfield, 'export_'//trim(lfieldnamelist(n)), rc=rc)
-       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       !TODO: ESMF framework has bug to write high-order meshes in VTK format
+       !call ESMF_FieldWriteVTK(lfield, 'export_'//trim(lfieldnamelist(n)), rc=rc)
+       !if (ChkErr(rc,__LINE__,u_FILE_u)) return
     enddo
 
     deallocate(lfieldnamelist)

@@ -233,8 +233,6 @@ contains
        mpas_cpl%diag, &
        mpas_cpl%diag_physics, &
        mpas_cpl%mesh, &
-       mpas_cpl%input_start_time, &
-       mpas_cpl%input_stop_time, &
        mpas_cpl%output_start_time, &
        mpas_cpl%output_stop_time, &
        mpas_cpl%config_apply_lbcs, &

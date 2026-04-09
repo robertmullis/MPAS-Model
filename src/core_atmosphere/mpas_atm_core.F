@@ -619,7 +619,7 @@ module atm_core
    
    function atm_core_run_start(domain, block_ptr, dt, config_do_restart, &
       config_restart_timestamp_name, diag_start_time, diag_stop_time, &
-      state, diag, diag_physics, mesh, input_start_time, input_stop_time, &
+      state, diag, diag_physics, mesh, &
       output_start_time, output_stop_time, config_apply_lbcs, &
       currTime, timestamp, itimestep) &
       result(ierr)
@@ -635,7 +635,6 @@ module atm_core
       implicit none
    
       type (domain_type), intent(inout) :: domain
-      integer :: ierr
    
       real (kind=RKIND), intent(out) :: dt
       logical, pointer, intent(out) :: config_do_restart
@@ -651,8 +650,9 @@ module atm_core
 
       ! For timing information
       real (kind=R8KIND), intent(out) :: diag_start_time, diag_stop_time
-      real (kind=R8KIND), intent(out) :: input_start_time, input_stop_time
       real (kind=R8KIND), intent(out) :: output_start_time, output_stop_time
+
+      integer :: ierr
       
       ierr = 0
 
@@ -992,8 +992,7 @@ module atm_core
 
       ierr = atm_core_run_start(domain, block_ptr, dt, config_do_restart, &
            config_restart_timestamp_name, diag_start_time, diag_stop_time, &
-           state, diag, diag_physics, mesh, input_start_time, &
-           input_stop_time, output_start_time, output_stop_time, &
+           state, diag, diag_physics, mesh, output_start_time, output_stop_time, &
            config_apply_lbcs, currTime, timestamp, itimestep)
 
       ! During integration, time level 1 stores the model state at the beginning of the

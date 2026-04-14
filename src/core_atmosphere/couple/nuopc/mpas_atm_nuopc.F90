@@ -4,17 +4,17 @@ module mpas_atm_nuopc
   ! This is the NUOPC cap for MPAS-Atmosphere 
   !-----------------------------------------------------------------------------
 
-  use ESMF, only: operator(+)
+  use ESMF, only: operator(+), operator(/=)
   use ESMF, only: ESMF_GridComp, ESMF_GridCompSetEntryPoint, ESMF_GridCompGet
   use ESMF, only: ESMF_VM, ESMF_VMGet
   use ESMF, only: ESMF_State, ESMF_StateGet, ESMF_Field
-  use ESMF, only: ESMF_Clock, ESMF_ClockGet, ESMF_ClockPrint
-  use ESMF, only: ESMF_Time, ESMF_TimePrint
+  use ESMF, only: ESMF_Clock, ESMF_ClockGet, ESMF_ClockSet, ESMF_ClockPrint
+  use ESMF, only: ESMF_Time, ESMF_TimeGet, ESMF_TimePrint
   use ESMF, only: ESMF_TimeInterval, ESMF_TimeIntervalGet
-  use ESMF, only: ESMF_LogWrite, ESMF_MeshWriteVTK
+  use ESMF, only: ESMF_LogWrite, ESMF_LogSetError, ESMF_MeshWriteVTK
   use ESMF, only: ESMF_Mesh, ESMF_MeshCreate, ESMF_FILEFORMAT_ESMFMESH
   use ESMF, only: ESMF_DistGrid, ESMF_DistGridCreate
-  use ESMF, only: ESMF_SUCCESS, ESMF_FAILURE
+  use ESMF, only: ESMF_SUCCESS, ESMF_FAILURE, ESMF_RC_VAL_WRONG
   use ESMF, only: ESMF_LOGMSG_INFO, ESMF_LOGMSG_ERROR
   use ESMF, only: ESMF_METHOD_INITIALIZE
   use ESMF, only: ESMF_KIND_R8
@@ -563,12 +563,55 @@ contains
     integer, intent(out) :: rc
 
     ! local variables
+    type(ESMF_Clock) :: dclock, mclock
+    type(ESMF_Time) :: dcurrtime, dstoptime
+    type(ESMF_Time) :: mcurrtime, mstoptime
+    type(ESMF_TimeInterval) :: dtimestep, mtimestep
+    character(len=128) :: dtimestring, mtimestring
     character(len=*), parameter :: subname=trim(modName)//':(ModelSetRunClock) '
     !-------------------------------------------------------------------------------
   
     rc = ESMF_SUCCESS
     call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
 
+    !----------------------
+    ! Query the component for its clock
+    !----------------------
+
+    call NUOPC_ModelGet(gcomp, driverClock=dclock, modelClock=mclock, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call ESMF_ClockGet(dclock, currTime=dcurrtime, timeStep=dtimestep, stopTime=dstoptime, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call ESMF_ClockGet(mclock, currTime=mcurrtime, timeStep=mtimestep, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    !--------------------------------
+    ! Check that the current time in the model and driver are the same
+    !--------------------------------
+
+    if (mcurrtime /= dcurrtime) then
+      call ESMF_TimeGet(dcurrtime, timeString=dtimestring, rc=rc)
+      if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+      call ESMF_TimeGet(mcurrtime, timeString=mtimestring, rc=rc)
+      if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+           msg=subname//": ERROR in time consistency: "//trim(dtimestring)//" != "//trim(mtimestring),  &
+           line=__LINE__, file=__FILE__, rcToReturn=rc)
+      return
+    endif
+
+    !--------------------------------
+    ! Force model clock currtime and timestep to match driver and set stoptime
+    !--------------------------------
+
+    mstoptime = mcurrtime + dtimestep
+
+    call ESMF_ClockSet(mclock, currTime=dcurrtime, timeStep=dtimestep, stopTime=mstoptime, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
@@ -599,14 +642,20 @@ contains
     ! input/output variables
     type(ESMF_GridComp)  :: gcomp
     integer, intent(out) :: rc
-           
+
     ! local variables
+    integer :: ierr
     character(len=*), parameter :: subname=trim(modName)//':(ModelFinalize) '
     !-------------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
     call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
 
+    !--------------------------------
+    ! Finalize model
+    !--------------------------------
+
+    call mpas_finalize(mpas_cpl%corelist, mpas_cpl%domain)
 
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 

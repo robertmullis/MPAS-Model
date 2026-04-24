@@ -124,7 +124,7 @@ contains
     ! export flux
     call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swnet', 'diag_physics', 'gsw', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_lwdn' , 'diag_physics', 'lwdnb', rc=rc) ! all-sky downward, glw
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_lwdn' , 'diag_physics', 'glw', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swdn' , 'diag_physics', 'swdnb', rc=rc) ! all-sky downward
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -138,14 +138,15 @@ contains
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_snowl', 'diag', '', rc=rc) ! large scale components
     !if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    ! TODO: We might provide shortwave in bands directly from MPAS
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndr', 'diag_physics', 'swdnb', scale_factor=0.31d0, rc=rc) ! need to confirm
+    ! The ratios used to split net shortwave radiation is taken from CMEPS mediator
+    ! Ref: https://github.com/NOAA-EMC/CMEPS/blob/fc8b9140e08465dcb5eab48056d4d5636c0e1716/mediator/med_phases_prep_ocn_mod.F90#L504
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndr', 'diag_physics', 'gsw', scale_factor=0.285d0, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdr', 'diag_physics', 'swdnb', scale_factor=0.28d0, rc=rc) ! need to confirm
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdr', 'diag_physics', 'gsw', scale_factor=0.285d0, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndf', 'diag_physics', 'swdnb', scale_factor=0.17d0, rc=rc) ! need to confirm
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndf', 'diag_physics', 'gsw', scale_factor=0.215d0, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdf', 'diag_physics', 'swdnb', scale_factor=0.24d0, rc=rc) ! ?
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdf', 'diag_physics', 'gsw', scale_factor=0.215d0, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! Now advertise above export fields
@@ -477,7 +478,7 @@ contains
 
           ! Check if we need to apply conversion
           apply_conversion = .false.
-          if (fldsFrMPAS(n)%scale_factor /= 1.0d0 .or. fldsFrMPAS(n)%add_offset /= 0.0d0) then
+          if (fldsToMPAS(n)%scale_factor /= 1.0d0 .or. fldsToMPAS(n)%add_offset /= 0.0d0) then
              apply_conversion = .true.
           end if
 
@@ -505,10 +506,11 @@ contains
                    ' is not found in '//trim(fldsToMPAS(n)%internalgroup), ESMF_LOGMSG_INFO)
              else
                 if (apply_conversion) then
+                   print*, fldsToMPAS(n)%scale_factor, fldsToMPAS(n)%add_offset, 'unit conversion !!!'
                    do iCell = 1, nCells
                       gCell = iCell + cell_offset
                       if(xland(iCell) .gt. 1.5 .and. fldPtrImport(gCell) .lt. 1.0d10) then
-                         fldptr(iCell) = fldPtrImport(gCell)*fldsFrMPAS(n)%scale_factor+fldsFrMPAS(n)%add_offset
+                         fldptr(iCell) = fldPtrImport(gCell)*fldsToMPAS(n)%scale_factor+fldsToMPAS(n)%add_offset
                       end if
                    end do
                 else

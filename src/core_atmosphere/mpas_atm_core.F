@@ -789,9 +789,12 @@ module atm_core
 
       integer :: ierr
       type (MPAS_Time_Type) :: currTime
+      logical, pointer :: enable_import
       integer :: iounit
 
       ierr = 0
+
+      call mpas_pool_get_config(domain % blocklist % configs, 'config_enable_import', enable_import)
 
       ! During integration, time level 1 stores the model state at the beginning of the
       !   time step, and time level 2 stores the state advanced dt in time by timestep(...)
@@ -831,7 +834,14 @@ module atm_core
          if (stream_dir == MPAS_STREAM_INPUT .or. stream_dir == MPAS_STREAM_INPUT_OUTPUT) then
             if (MPAS_stream_mgr_ringing_alarms(domain % streamManager, streamID=input_stream, &
                                                direction=MPAS_STREAM_INPUT, ierr=ierr)) then
-               if (trim(input_stream) == 'surface') cycle 
+               ! Prevent to overwrite the data coming from coupling
+               if (trim(input_stream) == 'surface' .and. enable_import) then
+                  call mpas_log_write('********************************************************************************')
+                  call mpas_log_write('config_enable_import is set to True')
+                  call mpas_log_write('Skip reading '//trim(input_stream)//' for surface update')
+                  call mpas_log_write('********************************************************************************')
+                  cycle 
+               end if
                call mpas_timer_start('stream_input')
                call mpas_dmpar_get_time(input_start_time)
                call MPAS_stream_mgr_read(domain % streamManager, streamID=input_stream, whence=MPAS_STREAM_LATEST_BEFORE, &

@@ -42,6 +42,7 @@ module mpas_atm_nuopc
   use mpas_pool_routines, only: mpas_pool_get_subpool
   use mpas_pool_routines, only: mpas_pool_get_dimension
   use mpas_pool_routines, only: mpas_pool_get_array
+  use mpas_pool_routines, only: mpas_pool_get_config
   use atm_core, only: atm_core_run_start, atm_core_run_advance
   use mpas_subdriver, only: mpas_init, mpas_finalize
 
@@ -244,6 +245,12 @@ contains
        rc = ESMF_FAILURE
        return
     end if
+
+    ! ---------------------
+    ! Query MPAS configuration
+    ! ---------------------
+
+    call mpas_pool_get_config(mpas_cpl % domain % blocklist % configs, 'config_enable_import', mpas_cpl % enable_import)
 
     ! ---------------------
     ! Get coupling specific options
@@ -479,11 +486,16 @@ contains
     ! Ingest data from import state
     !----------------------
 
-    call import_fields(importState, mpas_cpl%domain, rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if (mpas_cpl % enable_import) then
+       call import_fields(importState, mpas_cpl%domain, rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    call state_diagnose(importState, 'import', rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       call state_diagnose(importState, 'import', rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    else
+       call ESMF_LogWrite(trim(subname)// &
+         ": config_enable_import set to False in MPAS configuration. Skip importing", ESMF_LOGMSG_INFO)
+    end if
 
     ! ---------------------
     ! Run MPAS

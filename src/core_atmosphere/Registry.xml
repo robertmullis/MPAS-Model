@@ -459,6 +459,13 @@
         </nml_record>
 #endif
 
+        <nml_record name="coupling" in_defaults="true">
+                <nml_option name="config_enable_import" type="logical" default_value="false"
+                     units="-"
+                     description="logical for importing fields from coupling interface"
+                     possible_values=".true. for time-varying import fields; .false., otherwise"/>
+	</nml_record>
+
 <!-- **************************************************************************************** -->
 <!-- **************************************  Packages  ************************************** -->
 <!-- **************************************************************************************** -->

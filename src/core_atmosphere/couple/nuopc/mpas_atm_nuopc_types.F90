@@ -35,6 +35,7 @@ module mpas_atm_nuopc_types
      character(len=strkind) :: read_time
      integer :: stream_dir
      type(mpas_pool_type), pointer :: sfc_input
+     logical, pointer :: enable_import => null()
   end type mpas_cpl_type
 
   type(mpas_cpl_type), target :: mpas_cpl

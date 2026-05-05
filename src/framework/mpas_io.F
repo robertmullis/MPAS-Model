@@ -6336,6 +6336,7 @@ module mpas_io
             if (attlist_del % atthandle % attType == MPAS_ATT_INTA) deallocate(attlist_del % atthandle % attValueIntA)
             if (attlist_del % atthandle % attType == MPAS_ATT_REALA) deallocate(attlist_del % atthandle % attValueRealA)
             deallocate(attlist_del % atthandle)
+            deallocate(attlist_del)
          end do
          nullify(fieldlist_del % fieldhandle % attlist_head)
          nullify(fieldlist_del % fieldhandle % attlist_tail)
@@ -6363,6 +6364,7 @@ module mpas_io
          if (attlist_del % atthandle % attType == MPAS_ATT_INTA) deallocate(attlist_del % atthandle % attValueIntA)
          if (attlist_del % atthandle % attType == MPAS_ATT_REALA) deallocate(attlist_del % atthandle % attValueRealA)
          deallocate(attlist_del % atthandle)
+         deallocate(attlist_del)
       end do
       nullify(handle % attlist_head)
       nullify(handle % attlist_tail)

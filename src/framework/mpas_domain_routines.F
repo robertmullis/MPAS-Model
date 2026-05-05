@@ -46,10 +46,7 @@ module mpas_domain_routines
       allocate(dom % dminfo)
       nullify(dom % blocklist)
 
-      allocate(dom % configs)
-      allocate(dom % packages)
       allocate(dom % clock)
-      allocate(dom % streamManager)
       allocate(dom % ioContext)
 
       call mpas_pool_create_pool(dom % configs)
@@ -87,9 +84,6 @@ module mpas_domain_routines
 
       b % domain => dom
 
-      allocate(b % structs)
-      allocate(b % dimensions)
-      allocate(b % allFields)
       call mpas_pool_create_pool(b % structs)
       call mpas_pool_create_pool(b % dimensions)
       call mpas_pool_create_pool(b % allFields)

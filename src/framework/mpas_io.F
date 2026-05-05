@@ -1256,6 +1256,7 @@ module mpas_io
             ! TODO: Can we get the dimension sizes to see whether they match those from the file?
    
          end if
+         if (associated(inq_dimnames)) deallocate(inq_dimnames)
 
          return
       end if

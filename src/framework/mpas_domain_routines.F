@@ -138,6 +138,8 @@ module mpas_domain_routines
       deallocate(dom % clock)
       deallocate(dom % ioContext)
 
+      deallocate(dom % dminfo)
+
    end subroutine mpas_deallocate_domain!}}}
 
 

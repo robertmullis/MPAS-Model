@@ -163,17 +163,17 @@ module mpas_domain_routines
       call mpas_pool_destroy_pool(b % structs)
       call mpas_pool_destroy_pool(b % dimensions)
 
-      deallocate(b % parinfo % cellsToSend)
-      deallocate(b % parinfo % cellsToRecv)
-      deallocate(b % parinfo % cellsToCopy)
+      call mpas_dmpar_destroy_mulithalo_exchange_list(b % parinfo % cellsToSend)
+      call mpas_dmpar_destroy_mulithalo_exchange_list(b % parinfo % cellsToRecv)
+      call mpas_dmpar_destroy_mulithalo_exchange_list(b % parinfo % cellsToCopy)
 
-      deallocate(b % parinfo % edgesToSend)
-      deallocate(b % parinfo % edgesToRecv)
-      deallocate(b % parinfo % edgesToCopy)
+      call mpas_dmpar_destroy_mulithalo_exchange_list(b % parinfo % edgesToSend)
+      call mpas_dmpar_destroy_mulithalo_exchange_list(b % parinfo % edgesToRecv)
+      call mpas_dmpar_destroy_mulithalo_exchange_list(b % parinfo % edgesToCopy)
 
-      deallocate(b % parinfo % verticesToSend)
-      deallocate(b % parinfo % verticesToRecv)
-      deallocate(b % parinfo % verticesToCopy)
+      call mpas_dmpar_destroy_mulithalo_exchange_list(b % parinfo % verticesToSend)
+      call mpas_dmpar_destroy_mulithalo_exchange_list(b % parinfo % verticesToRecv)
+      call mpas_dmpar_destroy_mulithalo_exchange_list(b % parinfo % verticesToCopy)
 
       deallocate(b % parinfo)
 

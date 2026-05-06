@@ -6344,6 +6344,7 @@ module mpas_io
          deallocate(fieldlist_del % fieldhandle % dims)
 
          deallocate(fieldlist_del % fieldhandle)
+         deallocate(fieldlist_del)
       end do
       nullify(handle % fieldlist_head)
       nullify(handle % fieldlist_tail)
@@ -6353,6 +6354,7 @@ module mpas_io
          dimlist_del => dimlist_ptr 
          dimlist_ptr => dimlist_ptr % next
          deallocate(dimlist_del % dimhandle)
+         deallocate(dimlist_del)
       end do
       nullify(handle % dimlist_head)
       nullify(handle % dimlist_tail)

@@ -229,6 +229,14 @@ module mpas_pool_routines
                      deallocate(ptr % data % simple_int)
                   end if
    
+               else if (ptr % contentsType == MPAS_POOL_PACKAGE) then
+   
+                  dptr => ptr % data
+   
+                  if (dptr % contentsType == MPAS_POOL_LOGICAL) then
+                     deallocate(dptr % simple_logical)
+                  end if
+   
                else if (ptr % contentsType == MPAS_POOL_CONFIG) then
    
                   dptr => ptr % data

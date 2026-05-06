@@ -210,7 +210,6 @@ module mpas_io
 #endif
 
 #ifdef MPAS_SMIOL_SUPPORT
-         allocate(ioContext % smiol_context)
 #ifdef MPAS_USE_MPI_F08
          local_ierr = SMIOLf_init(ioContext % dminfo % comm % mpi_val, &
 #else

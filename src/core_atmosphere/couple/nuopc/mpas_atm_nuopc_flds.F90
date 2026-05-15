@@ -13,7 +13,7 @@ module mpas_atm_nuopc_flds
   use ESMF, only: ESMF_TYPEKIND_R8, ESMF_KIND_R8, ESMF_MAXSTR
   use ESMF, only: ESMF_Field, ESMF_FieldGet, ESMF_Mesh, ESMF_StateRemove
   use ESMF, only: ESMF_LogFoundError, ESMF_LOGERR_PASSTHRU
-  use ESMF, only: ESMF_UtilString2Double
+  use ESMF, only: ESMF_FieldWrite, ESMF_UtilString2Double
 
   use NUOPC, only: NUOPC_Advertise, NUOPC_Realize, NUOPC_IsConnected
   use NUOPC_Model, only: NUOPC_ModelGet
@@ -50,8 +50,11 @@ module mpas_atm_nuopc_flds
      character(len=128) :: stdname
      character(len=128) :: internalgroup
      character(len=128) :: internalname
+     integer :: level = 0
      real(ESMF_KIND_R8) :: scale_factor = 1.0d0
      real(ESMF_KIND_R8) :: add_offset = 0.0d0
+     real(ESMF_KIND_R8) :: valid_min = -1.0d20
+     real(ESMF_KIND_R8) :: valid_max = 1.0d20
      integer :: ungridded_lbound = 0
      integer :: ungridded_ubound = 0
      logical :: connected = .false.
@@ -100,53 +103,46 @@ contains
     !--------------------------------
 
     ! export scalar
-    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_topo', 'sfc_input', 'ter', rc=rc) ! m
-    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_z', 'const', 'n/a', add_offset=10.0d0, rc=rc) ! lowest layer height?
+    ! set as constant in here but actually set in export_fields() routine later
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_z', 'const', 'n/a', add_offset=0.0d0, rc=rc) 
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_u', 'diag_physics', 'u10', rc=rc) ! lowest layer u?
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_u', 'diag', 'uReconstructZonal', level=1, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_v', 'diag_physics', 'v10', rc=rc) ! lowest layer v?
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_v', 'diag', 'uReconstructMeridional', level=1, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_tbot', 'diag_physics', 't2m', rc=rc)
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_tbot', 'diag', 'theta', level=1, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_pbot', 'diag', 'surface_pressure', rc=rc) ! lowest layer p?
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_pbot', 'diag', 'pressure', level=1, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_shum', 'diag_physics', 'q2', rc=rc)
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_shum', 'state', 'qv', level=1, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_dens', 'diag', 'rho', rc=rc)
-    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_ptem', 'diag_physics', 't2m', rc=rc) ! theta?
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_dens', 'diag', 'rho', level=1, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_pslv', 'diag', 'surface_pressure', rc=rc) ! Pa
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_ptem', 'diag', 'theta', level=1, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Sa_pslv', 'diag', 'surface_pressure', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! export flux
     call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swnet', 'diag_physics', 'gsw', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_lwdn' , 'diag_physics', 'glw', rc=rc)
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_lwdn' , 'diag_physics', 'lwdnb', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swdn' , 'diag_physics', 'swdnb', rc=rc) ! all-sky downward
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swdn' , 'diag_physics', 'swdnb', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_rain', '?', '?', rc=rc)
-    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_rainc', 'diag_physics', 'rainncv', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_rainl', 'diag', '', rc=rc) ! large scale components
-    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_snowc', 'diag_physics', 'snowncv', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    !call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_snowl', 'diag', '', rc=rc) ! large scale components
-    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
     ! The ratios used to split net shortwave radiation is taken from CMEPS mediator
     ! Ref: https://github.com/NOAA-EMC/CMEPS/blob/fc8b9140e08465dcb5eab48056d4d5636c0e1716/mediator/med_phases_prep_ocn_mod.F90#L504
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndr', 'diag_physics', 'gsw', scale_factor=0.285d0, rc=rc)
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndr', 'diag_physics', 'swdnb', scale_factor=0.285d0, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdr', 'diag_physics', 'gsw', scale_factor=0.285d0, rc=rc)
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdr', 'diag_physics', 'swdnb', scale_factor=0.285d0, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndf', 'diag_physics', 'gsw', scale_factor=0.215d0, rc=rc)
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swndf', 'diag_physics', 'swdnb', scale_factor=0.215d0, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdf', 'diag_physics', 'gsw', scale_factor=0.215d0, rc=rc)
+    call fldlist_add(fldsFrMPAS_num, fldsFrMPAS, 'Faxa_swvdf', 'diag_physics', 'swdnb', scale_factor=0.215d0, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! Now advertise above export fields
@@ -161,7 +157,7 @@ contains
     !--------------------------------
 
     ! import from ocn 
-    call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'sfc_input', 'sst', rc=rc)
+    call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'sfc_input', 'sst', valid_min=270.0d0, valid_max=325.0d0, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! Now advertise import fields
@@ -214,7 +210,10 @@ contains
 
   !=============================================================================
 
-  subroutine fldlist_add(num, fldlist, stdname, intgrp, intname, scale_factor, add_offset, ungridded_lbound, ungridded_ubound, rc)
+  subroutine fldlist_add(num, fldlist, stdname, intgrp, intname, level, &
+                scale_factor, add_offset, &
+                valid_min, valid_max, &
+                ungridded_lbound, ungridded_ubound, rc)
 
     ! input/output variables
     integer,           intent(inout) :: num
@@ -222,8 +221,11 @@ contains
     character(len=*),  intent(in)    :: stdname
     character(len=*),  intent(in)    :: intgrp
     character(len=*),  intent(in)    :: intname
+    integer, optional, intent(in)    :: level
     real(ESMF_KIND_R8), optional, intent(in) :: scale_factor 
     real(ESMF_KIND_R8), optional, intent(in) :: add_offset
+    real(ESMF_KIND_R8), optional, intent(in) :: valid_min
+    real(ESMF_KIND_R8), optional, intent(in) :: valid_max
     integer, optional, intent(in)    :: ungridded_lbound
     integer, optional, intent(in)    :: ungridded_ubound
     integer, optional, intent(out)   :: rc
@@ -247,12 +249,24 @@ contains
     fldlist(num)%internalgroup = trim(intgrp)
     fldlist(num)%internalname = trim(intname)
 
+    if (present(level)) then
+       fldlist(num)%level = level
+    end if
+
     if (present(scale_factor)) then
        fldlist(num)%scale_factor = scale_factor
     end if
 
     if (present(add_offset)) then
        fldlist(num)%add_offset = add_offset
+    end if
+
+    if (present(valid_min)) then
+       fldlist(num)%valid_min = valid_min
+    end if
+
+    if (present(valid_max)) then
+       fldlist(num)%valid_max = valid_max
     end if
 
     if (present(ungridded_lbound) .and. present(ungridded_ubound)) then
@@ -339,6 +353,7 @@ contains
     type(mpas_pool_type), pointer :: meshPool
     type(mpas_pool_type), pointer :: mpasPtrPool
     real(kind=rkind), dimension(:), pointer :: fldPtr
+    real(kind=rkind), dimension(:,:), pointer :: fldPtr2d
     real(ESMF_KIND_R8), dimension(:), pointer :: fldPtrExport
     integer, dimension(:), pointer :: nCellsArray
     character(len=*), parameter :: subname=trim(modName)//':(export_fields)'
@@ -388,25 +403,62 @@ contains
              call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
              nCells = nCellsArray(1)
 
-             ! Access internal pointer
+             ! Access internal pointer pool
              call mpas_pool_get_subpool(block % structs, trim(fldsFrMPAS(n)%internalgroup), mpasPtrPool)
-             call mpas_pool_get_array(mpasPtrPool, trim(fldsFrMPAS(n)%internalname), fldptr)
-             if (.not. associated(fldptr)) then
-                ! TODO: Throw error and exit
-                call ESMF_LogWrite(subname//' '//trim(fldsFrMPAS(n)%internalname)//&
-                   ' is not found in '//trim(fldsFrMPAS(n)%internalgroup), ESMF_LOGMSG_INFO)
-             else
-                if (apply_conversion) then
-                   do iCell = 1, nCells
-                      gCell = iCell + cell_offset
-                      fldPtrExport(gCell) = dble(fldptr(iCell))*fldsFrMPAS(n)%scale_factor+fldsFrMPAS(n)%add_offset
-                   end do
+
+             ! Pass data 
+             if (fldsFrMPAS(n)%level > 0) then ! 2d field
+                ! Access internal field pointer
+                call mpas_pool_get_array(mpasPtrPool, trim(fldsFrMPAS(n)%internalname), fldptr2d)
+
+                ! Put data to export field 
+                if (.not. associated(fldptr2d)) then
+                   ! TODO: Throw error and exit
+                   call ESMF_LogWrite(subname//' '//trim(fldsFrMPAS(n)%internalname)//&
+                      ' is not found in '//trim(fldsFrMPAS(n)%internalgroup), ESMF_LOGMSG_INFO)
                 else
-                   do iCell = 1, nCells
-                      gCell = iCell + cell_offset
-                      fldPtrExport(gCell) = dble(fldptr(iCell))
-                   end do
+                   if (apply_conversion) then
+                      do iCell = 1, nCells
+                         gCell = iCell + cell_offset
+                         fldPtrExport(gCell) = dble(fldptr2d(fldsFrMPAS(n)%level,iCell))*fldsFrMPAS(n)%scale_factor+fldsFrMPAS(n)%add_offset
+                      end do
+                   else
+                      do iCell = 1, nCells
+                         gCell = iCell + cell_offset
+                         fldPtrExport(gCell) = dble(fldptr2d(fldsFrMPAS(n)%level,iCell))
+                      end do
+                   end if
                 end if
+
+                ! Nullify pointer
+                nullify(fldptr2d)
+
+             else ! 1d field
+                ! Access internal field pointer
+                call mpas_pool_get_array(mpasPtrPool, trim(fldsFrMPAS(n)%internalname), fldptr)
+
+                ! Put data to export field 
+                if (.not. associated(fldptr)) then
+                   ! TODO: Throw error and exit
+                   call ESMF_LogWrite(subname//' '//trim(fldsFrMPAS(n)%internalname)//&
+                      ' is not found in '//trim(fldsFrMPAS(n)%internalgroup), ESMF_LOGMSG_INFO)
+                else
+                   if (apply_conversion) then
+                      do iCell = 1, nCells
+                         gCell = iCell + cell_offset
+                         fldPtrExport(gCell) = dble(fldptr(iCell))*fldsFrMPAS(n)%scale_factor+fldsFrMPAS(n)%add_offset
+                      end do
+                   else
+                      do iCell = 1, nCells
+                         gCell = iCell + cell_offset
+                         fldPtrExport(gCell) = dble(fldptr(iCell))
+                      end do
+                   end if
+                end if
+
+                ! Nullify pointer
+                nullify(fldptr)
+
              end if
 
              ! Increment cell offset
@@ -415,8 +467,6 @@ contains
              ! Go to next block
              block => block % next
 
-             ! Nullify pointer
-             nullify(fldptr)
           end do
 
           ! Init pointers
@@ -425,6 +475,16 @@ contains
           call ESMF_LogWrite(subname//' '//trim(fldsFrMPAS(n)%stdname)//' is not in the state!', ESMF_LOGMSG_INFO)
        end if
     end do
+
+    ! Custom calculation 
+    call calcHeight(exportState, domain, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call getScalars(exportState, domain, 'Sa_shum', 'qv', rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call calcTemp(exportState, domain, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
@@ -441,7 +501,7 @@ contains
 
     ! local variables
     integer :: n, iCell, gCell, nCells, cell_offset
-    logical :: apply_conversion
+    logical :: apply_conversion, isValid
     type(ESMF_Field) :: lfield
     type(ESMF_StateItem_Flag) :: itemType
     type(block_type), pointer :: block => null()
@@ -506,17 +566,22 @@ contains
                    ' is not found in '//trim(fldsToMPAS(n)%internalgroup), ESMF_LOGMSG_INFO)
              else
                 if (apply_conversion) then
-                   print*, fldsToMPAS(n)%scale_factor, fldsToMPAS(n)%add_offset, 'unit conversion !!!'
                    do iCell = 1, nCells
                       gCell = iCell + cell_offset
-                      if(xland(iCell) .gt. 1.5 .and. fldPtrImport(gCell) .lt. 1.0d10) then
+                      isValid = ((fldPtrImport(gCell) .ge. fldsToMPAS(n)%valid_min) .and. &
+                                 (fldPtrImport(gCell) .le. fldsToMPAS(n)%valid_max))  
+                      if(xland(iCell) .gt. 1.5 .and. isValid) then
                          fldptr(iCell) = fldPtrImport(gCell)*fldsToMPAS(n)%scale_factor+fldsToMPAS(n)%add_offset
                       end if
                    end do
                 else
                    do iCell = 1, nCells
                       gCell = iCell + cell_offset
-                      if(xland(iCell) .gt. 1.5 .and. fldPtrImport(gCell) .lt. 1.0d10) then
+                      isValid = ((fldPtrImport(gCell) .ge. fldsToMPAS(n)%valid_min) .and. &
+                                 (fldPtrImport(gCell) .le. fldsToMPAS(n)%valid_max))  
+                      !if(xland(iCell) .gt. 1.5 .and. isValid) then
+                      if(xland(iCell) .gt. 1.5) then
+                         if (fldPtrImport(gCell) < 100.0) print*, gCell, fldPtrImport(gCell)
                          fldptr(iCell) = fldPtrImport(gCell)
                       end if
                    end do
@@ -544,6 +609,225 @@ contains
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
   end subroutine import_fields
+
+  !===============================================================================
+
+  subroutine calcHeight(state, domain, rc) 
+
+    ! input/output variables
+    type(ESMF_State), intent(inout) :: state
+    type(domain_type), intent(in), pointer :: domain
+    integer, intent(out) :: rc
+
+    ! local variables
+    type(ESMF_Field) :: lfield
+    type(ESMF_StateItem_Flag) :: itemType
+    integer :: iCell, gCell, nCells, cell_offset
+    type(block_type), pointer :: block => null()
+    type(mpas_pool_type), pointer :: meshPool
+    integer, dimension(:), pointer :: nCellsArray
+    real(kind=rkind), dimension(:,:), pointer :: zGrid
+    real(ESMF_KIND_R8), dimension(:), pointer :: fldPtr
+    character(len=*), parameter :: subname=trim(modName)//':(calc_height)'
+    ! ----------------------------------------------
+
+    rc = ESMF_SUCCESS
+    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+
+    ! Check field
+    call ESMF_StateGet(state, itemName='Sa_z', itemType=itemType, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    if (itemType == ESMF_STATEITEM_FIELD) then
+       ! Get field
+       call ESMF_StateGet(state, itemName='Sa_z', field=lfield, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       ! Query field pointer and initialize
+       call ESMF_FieldGet(lfield, farrayPtr=fldPtr, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       ! Get geometric height of layer interfaces 
+       cell_offset = 0
+       block => domain % blocklist
+       do while (associated(block))
+          ! Get height of vertical layers
+          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+          call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+          nCells = nCellsArray(1)
+          call mpas_pool_get_array(meshPool, 'zgrid', zGrid)
+
+          ! Calculate level height
+          do iCell = 1, nCells
+             gCell = iCell + cell_offset
+             fldPtr(gCell) = dble(0.5*(zGrid(2,iCell) - zGrid(1,iCell)))
+          end do
+
+          ! Increment cell offset
+          cell_offset = cell_offset + nCells
+
+          ! Go to next block
+          block => block % next
+       end do
+
+       ! Init pointers
+       nullify(fldPtr)
+    end if
+
+    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+
+  end subroutine calcHeight
+
+  !===============================================================================
+
+  subroutine getScalars(state, domain, fnameExt, fnameInt, rc)
+
+    ! input/output variables
+    type(ESMF_State), intent(inout) :: state
+    type(domain_type), intent(in), pointer :: domain
+    character(len=*), intent(in) :: fnameExt
+    character(len=*), intent(in) :: fnameInt
+    integer, intent(out) :: rc
+
+    ! local variables
+    type(ESMF_Field) :: lfield
+    type(ESMF_StateItem_Flag) :: itemType
+    integer :: iCell, gCell, nCells, cell_offset
+    integer, pointer:: varIndx
+    type(block_type), pointer :: block => null()
+    type(mpas_pool_type), pointer :: meshPool
+    type(mpas_pool_type), pointer :: statePool
+    integer, dimension(:), pointer :: nCellsArray
+    real(kind=rkind), dimension(:,:,:), pointer :: scalars
+    real(ESMF_KIND_R8), dimension(:), pointer :: fldPtr
+    character(len=*), parameter :: subname=trim(modName)//':(getScalars)'
+    ! ----------------------------------------------
+
+    rc = ESMF_SUCCESS
+    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+
+    ! Check field
+    call ESMF_StateGet(state, itemName=trim(fnameExt), itemType=itemType, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    if (itemType == ESMF_STATEITEM_FIELD) then
+       ! Get field
+       call ESMF_StateGet(state, itemName=trim(fnameExt), field=lfield, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       ! Query field pointer and initialize
+       call ESMF_FieldGet(lfield, farrayPtr=fldPtr, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       ! Access to MPAS field
+       cell_offset = 0
+       block => domain % blocklist
+       do while (associated(block))
+          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+          call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+          nCells = nCellsArray(1)
+          call mpas_pool_get_subpool(block % structs, 'state', statePool)
+          call mpas_pool_get_dimension(statePool, 'index_'//trim(fnameInt), varIndx)
+          call mpas_pool_get_array(statePool, 'scalars', scalars, 1)
+
+          ! Fill pointer 
+          do iCell = 1, nCells
+             gCell = iCell + cell_offset
+             fldPtr(gCell) = dble(scalars(varIndx,1,iCell))
+          end do
+
+          ! Increment cell offset
+          cell_offset = cell_offset + nCells
+
+          ! Go to next block
+          block => block % next
+       end do
+
+       ! Custom calculations
+       if (trim(fnameInt) == 'qv') then
+          ! water mixing ratio (kg/kg) -> specific humidity (kg/kg)
+          fldPtr(:) = (fldPtr(:) / (1.0d0 + fldPtr(:)))
+       end if
+
+       ! Init pointers
+       nullify(fldPtr)
+    end if
+
+    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+
+  end subroutine getScalars
+
+  !===============================================================================
+
+  subroutine calcTemp(state, domain, rc)
+
+    ! input/output variables
+    type(ESMF_State), intent(inout) :: state
+    type(domain_type), intent(in), pointer :: domain
+    integer, intent(out) :: rc
+
+    ! local variables
+    type(ESMF_Field) :: lfield
+    type(ESMF_StateItem_Flag) :: itemType
+    integer :: iCell, gCell, nCells, cell_offset
+    integer, pointer:: varIndx
+    type(block_type), pointer :: block => null()
+    type(mpas_pool_type), pointer :: meshPool
+    type(mpas_pool_type), pointer :: diagPool
+    integer, dimension(:), pointer :: nCellsArray
+    real(kind=rkind),dimension(:,:), pointer :: theta
+    real(kind=rkind),dimension(:,:), pointer :: exner
+    real(ESMF_KIND_R8), dimension(:), pointer :: fldPtr
+    character(len=*), parameter :: subname=trim(modName)//':(calcTemp)'
+    ! ----------------------------------------------
+
+    rc = ESMF_SUCCESS
+    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+
+    ! Check field
+    call ESMF_StateGet(state, itemName='Sa_tbot', itemType=itemType, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    if (itemType == ESMF_STATEITEM_FIELD) then
+       ! Get field
+       call ESMF_StateGet(state, itemName='Sa_tbot', field=lfield, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       ! Query field pointer and initialize
+       call ESMF_FieldGet(lfield, farrayPtr=fldPtr, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       ! Access to MPAS field
+       cell_offset = 0
+       block => domain % blocklist
+       do while (associated(block))
+          call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+          call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+          nCells = nCellsArray(1)
+          call mpas_pool_get_subpool(block % structs, 'diag', diagPool)
+          call mpas_pool_get_array(diagPool, 'theta', theta)
+          call mpas_pool_get_array(diagPool, 'exner', exner)
+
+          ! Fill pointer 
+          do iCell = 1, nCells
+             gCell = iCell + cell_offset
+             fldPtr(gCell) = dble(theta(1,iCell)*exner(1,iCell))
+          end do
+
+          ! Increment cell offset
+          cell_offset = cell_offset + nCells
+
+          ! Go to next block
+          block => block % next
+       end do
+
+       ! Init pointers
+       nullify(fldPtr)
+    end if
+
+    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+
+  end subroutine calcTemp
 
   !===============================================================================
 

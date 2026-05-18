@@ -88,7 +88,7 @@ contains
     ! local variables
     type(ESMF_State)  :: importState
     type(ESMF_State)  :: exportState
-    integer           :: n
+    integer           :: n, itemCount
     character(len=*), parameter :: subname=trim(modName)//':(advertise_fields)'
     !---------------------------------------------------------------------------
 
@@ -157,14 +157,21 @@ contains
     !--------------------------------
 
     ! import from ocn 
-    call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'sfc_input', 'sst', valid_min=270.0d0, valid_max=325.0d0, rc=rc)
+    call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'sfc_input', 'sst', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'sfc_input', 'skintemp', rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! Now advertise import fields
     do n = 1, fldsToMPAS_num
-       call NUOPC_Advertise(importState, standardName=fldsToMPAS(n)%stdname, &
-            TransferOfferGeomObject='will provide', rc=rc)
+       call ESMF_StateGet(importState, itemSearch=trim(fldsToMPAS(n)%stdname), itemCount=itemCount, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       if (itemCount == 0) then
+          call NUOPC_Advertise(importState, standardName=fldsToMPAS(n)%stdname, &
+               TransferOfferGeomObject='will provide', rc=rc)
+          if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       end if
     end do
 
     call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
@@ -501,7 +508,7 @@ contains
 
     ! local variables
     integer :: n, iCell, gCell, nCells, cell_offset
-    logical :: apply_conversion, isValid
+    logical :: apply_conversion
     type(ESMF_Field) :: lfield
     type(ESMF_StateItem_Flag) :: itemType
     type(block_type), pointer :: block => null()
@@ -568,25 +575,18 @@ contains
                 if (apply_conversion) then
                    do iCell = 1, nCells
                       gCell = iCell + cell_offset
-                      isValid = ((fldPtrImport(gCell) .ge. fldsToMPAS(n)%valid_min) .and. &
-                                 (fldPtrImport(gCell) .le. fldsToMPAS(n)%valid_max))  
-                      if(xland(iCell) .gt. 1.5 .and. isValid) then
+                      if(xland(iCell) .gt. 1.5) then
                          fldptr(iCell) = fldPtrImport(gCell)*fldsToMPAS(n)%scale_factor+fldsToMPAS(n)%add_offset
                       end if
                    end do
                 else
                    do iCell = 1, nCells
                       gCell = iCell + cell_offset
-                      isValid = ((fldPtrImport(gCell) .ge. fldsToMPAS(n)%valid_min) .and. &
-                                 (fldPtrImport(gCell) .le. fldsToMPAS(n)%valid_max))  
-                      !if(xland(iCell) .gt. 1.5 .and. isValid) then
                       if(xland(iCell) .gt. 1.5) then
-                         if (fldPtrImport(gCell) < 100.0) print*, gCell, fldPtrImport(gCell)
                          fldptr(iCell) = fldPtrImport(gCell)
                       end if
                    end do
                 end if
-
              end if 
 
              ! Increment cell offset

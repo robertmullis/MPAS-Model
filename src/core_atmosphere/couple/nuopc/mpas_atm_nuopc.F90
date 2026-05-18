@@ -505,7 +505,7 @@ contains
     ! HERE THE MODEL ADVANCES: currTime -> currTime + timeStep
 
     call ESMF_ClockPrint(clock, options="currTime", &
-       preString="------>Advancing OCN from: ", unit=msgString, rc=rc)
+       preString="------>Advancing ATM from: ", unit=msgString, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call ESMF_LogWrite(trim(subname)//": "//trim(msgString), ESMF_LOGMSG_INFO)
 

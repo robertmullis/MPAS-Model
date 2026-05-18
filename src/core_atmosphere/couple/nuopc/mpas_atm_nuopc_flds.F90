@@ -157,9 +157,7 @@ contains
     !--------------------------------
 
     ! import from ocn 
-    call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'sfc_input', 'sst', rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'sfc_input', 'skintemp', rc=rc)
+    call fldlist_add(fldsToMPAS_num, fldsToMPAS, 'So_t', 'coupling', 'sst_c', valid_min=100.0d0, valid_max = 1.0d20, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! Now advertise import fields
@@ -333,7 +331,7 @@ contains
        else
           call ESMF_LogWrite(subname // trim(tag) // " Field = "// trim(stdname) // " is not connected.", &
                ESMF_LOGMSG_INFO)
-          call ESMF_StateRemove(state, (/stdname/), rc=rc)
+          call ESMF_StateRemove(state, (/stdname/), relaxedflag=.true., rc=rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
        end if
     end do
@@ -515,7 +513,9 @@ contains
     type(mpas_pool_type), pointer :: meshPool
     type(mpas_pool_type), pointer :: mpasPtrPool
     type(mpas_pool_type), pointer :: sfcInputPool
-    real(kind=rkind), dimension(:), pointer:: xland
+    type(mpas_pool_type), pointer :: couplingPool
+    integer, dimension(:), pointer :: mask_c
+    real(kind=rkind), dimension(:), pointer :: xland
     real(kind=rkind), dimension(:), pointer :: fldPtr
     real(ESMF_KIND_R8), dimension(:), pointer :: fldPtrImport
     integer, dimension(:), pointer :: nCellsArray
@@ -559,7 +559,9 @@ contains
 
              ! Get land sea mask
              call mpas_pool_get_subpool(block % structs, 'sfc_input', sfcInputPool)
+             call mpas_pool_get_subpool(block % structs, 'coupling', couplingPool)
              call mpas_pool_get_array(sfcInputPool, 'xland', xland)
+             call mpas_pool_get_array(couplingPool, 'mask_c', mask_c)
              
              ! Get number of cells in decomposition block
              call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
@@ -567,6 +569,7 @@ contains
              nCells = nCellsArray(1)
 
              ! Loop over cells and fill pointer of export field
+             mask_c(:) = 1
              if (.not. associated(fldptr)) then
                 ! TODO: Throw error and exit
                 call ESMF_LogWrite(subname//' '//trim(fldsToMPAS(n)%internalname)//&
@@ -575,15 +578,21 @@ contains
                 if (apply_conversion) then
                    do iCell = 1, nCells
                       gCell = iCell + cell_offset
-                      if(xland(iCell) .gt. 1.5) then
+                      if(xland(iCell) .gt. 1.5 .and. &
+                         fldPtrImport(gCell) >= fldsToMPAS(n)%valid_min .and. &
+                         fldPtrImport(gCell) <= fldsToMPAS(n)%valid_max) then
                          fldptr(iCell) = fldPtrImport(gCell)*fldsToMPAS(n)%scale_factor+fldsToMPAS(n)%add_offset
+                         mask_c(iCell) = 0
                       end if
                    end do
                 else
                    do iCell = 1, nCells
                       gCell = iCell + cell_offset
-                      if(xland(iCell) .gt. 1.5) then
+                      if(xland(iCell) .gt. 1.5 .and. &
+                         fldPtrImport(gCell) >= fldsToMPAS(n)%valid_min .and. &
+                         fldPtrImport(gCell) <= fldsToMPAS(n)%valid_max) then
                          fldptr(iCell) = fldPtrImport(gCell)
+                         mask_c(iCell) = 0
                       end if
                    end do
                 end if

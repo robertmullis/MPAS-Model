@@ -834,14 +834,6 @@ module atm_core
          if (stream_dir == MPAS_STREAM_INPUT .or. stream_dir == MPAS_STREAM_INPUT_OUTPUT) then
             if (MPAS_stream_mgr_ringing_alarms(domain % streamManager, streamID=input_stream, &
                                                direction=MPAS_STREAM_INPUT, ierr=ierr)) then
-               ! Prevent to overwrite the data coming from coupling
-               if (trim(input_stream) == 'surface' .and. enable_import .and. itimestep > 1) then
-                  call mpas_log_write('********************************************************************************')
-                  call mpas_log_write('config_enable_import is set to True')
-                  call mpas_log_write('Skip reading '//trim(input_stream)//' for surface update')
-                  call mpas_log_write('********************************************************************************')
-                  cycle 
-               end if
                call mpas_timer_start('stream_input')
                call mpas_dmpar_get_time(input_start_time)
                call MPAS_stream_mgr_read(domain % streamManager, streamID=input_stream, whence=MPAS_STREAM_LATEST_BEFORE, &

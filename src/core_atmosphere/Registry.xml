@@ -4027,6 +4027,12 @@
                 </var_array>
          </var_struct>
 
+         <var_struct name="coupling" time_levs="1">
+                <var name="mask_c" type="integer"  dimensions="nCells" units="unitless"
+                     description="coupling land-sea mask (1=land ; 0=ocean)"/>
+		<var name="sst_c" type="real" dimensions="nCells Time" units="K"
+		     description="sea-surface temperature"/>
+         </var_struct>
 
 <!-- **************************************************************************************** -->
 <!-- ************************************** Diagnostics ************************************* -->

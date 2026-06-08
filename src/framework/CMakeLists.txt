@@ -34,7 +34,9 @@ set(MPAS_FRAMEWORK_SOURCES
         random_id.c
         regex_matching.c
         xml_stream_parser.c
-        stream_inquiry.c)
+        stream_inquiry.c
+        ptscotch_interface.c
+        mpas_ptscotch_interface.F)
 
 add_library(framework ${MPAS_FRAMEWORK_SOURCES})
 set_MPAS_DEBUG_flag(framework)
@@ -68,6 +70,13 @@ set(FRAMEWORK_LINK_LIBRARIES
 if (MPAS_PROFILE)
     list(APPEND FRAMEWORK_LINK_LIBRARIES GPTL::GPTL)
 endif ()
+if (MPAS_SCOTCH)
+    target_compile_definitions(framework PRIVATE MPAS_SCOTCH)  # direct call, not list append
+    target_include_directories(framework PRIVATE ${SCOTCH_INCLUDE_DIR})
+    list(APPEND FRAMEWORK_LINK_LIBRARIES ${SCOTCH_LIBRARY} ${SCOTCHERR_LIBRARY}
+         ${SCOTCH_ROOT}/lib/libscotch.a ${SCOTCH_ROOT}/lib/libscotcherr.a)
+endif()
+
 target_link_libraries(framework PUBLIC ${FRAMEWORK_LINK_LIBRARIES})
 target_include_directories(framework INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

@@ -34,6 +34,23 @@ static int possible_bre(const char *s)
 }
 
 
+/******************************************************************************
+ *
+ * check_regex_match
+ *
+ * Determine whether an input string 'str' matches the Basic Regular Expression
+ * (BRE) 'pattern'.
+ *
+ * Inputs:
+ *   pattern - a null-terminated string that may contain any valid BRE,
+ *             including a simple string
+ *   str     - a null-terminated string to be checked against pattern
+ *
+ * Return value: 1 if the input string str matches the BRE pattern,
+ *               0 if the input string does not match the BRE pattern, and
+ *              -1 if an error occurred.
+ *
+ ******************************************************************************/
 void check_regex_match(const char * pattern, const char * str, int *imatch)
 {
 	regex_t regex;

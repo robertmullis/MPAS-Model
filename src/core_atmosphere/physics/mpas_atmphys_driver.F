@@ -21,6 +21,7 @@
  use mpas_atmphys_driver_seaice,only: allocate_seaice,deallocate_seaice,driver_seaice
  use mpas_atmphys_driver_sfclayer
  use mpas_atmphys_driver_oml
+ use mpas_atmphys_driver_cpl
  use mpas_atmphys_constants
  use mpas_atmphys_interface
  use mpas_atmphys_sfc_diagnostics,only: atmphys_sfc_diagnostics
@@ -71,6 +72,7 @@
 ! driver_radiation_sw         : driver for short wave radiation schemes.
 ! driver_radiation_lw         : driver for long wave radiation schemes.
 ! driver_sfclayer             : driver for surface layer scheme.
+! driver_cpl                  : driver for coupling.
 ! update_convection_step1     : updates lifetime of deep convective clouds in Kain-Fritsch scheme.
 ! update_convection_step2     : updates accumulated precipitation output from convection schemes.
 ! update_radiation_diagnostics: updates accumualted radiation diagnostics from radiation schemes.
@@ -129,7 +131,8 @@
                                  tend_physics,        &
                                  atm_input,           &
                                  ngw_input,           &
-                                 sfc_input
+                                 sfc_input,           &
+                                 coupling
 
  logical,pointer:: config_frac_seaice
 
@@ -143,6 +146,7 @@
                                   config_sfclayer_scheme
 
  logical, pointer:: config_oml1d
+ logical, pointer:: config_enable_import
  real(kind=RKIND),pointer:: config_bucket_radt
 
 !local variables:
@@ -171,6 +175,7 @@
  call mpas_pool_get_config(domain%configs,'config_bucket_update'    ,config_bucket_update    )
  call mpas_pool_get_config(domain%configs,'config_frac_seaice'      ,config_frac_seaice      ) 
  call mpas_pool_get_config(domain%configs,'config_oml1d'            ,config_oml1d            )
+ call mpas_pool_get_config(domain%configs,'config_enable_import'    ,config_enable_import    )
 
  if(config_convection_scheme .ne. 'off' .or. &
     config_lsm_scheme        .ne. 'off' .or. &
@@ -192,6 +197,7 @@
     call mpas_pool_get_subpool(block%structs,'sfc_input'          ,sfc_input          )
     call mpas_pool_get_subpool(block%structs,'ngw_input'          ,ngw_input          )
     call mpas_pool_get_subpool(block%structs,'tend_physics'       ,tend_physics       )
+    call mpas_pool_get_subpool(block%structs,'coupling'           ,coupling)
 
     call mpas_pool_get_dimension(block%dimensions,'nThreads',nThreads)
 
@@ -278,6 +284,9 @@
 
     !call to 1d ocean mixed-layer model
     if(config_oml1d) call driver_oml1d(block%configs,mesh,diag,diag_physics,sfc_input)
+
+    !call to coupling
+    if(config_enable_import) call driver_cpl(block%configs,mesh,diag,diag_physics,sfc_input,coupling)
 
     !call to land-surface scheme:
     if(config_lsm_scheme .ne. 'off') then

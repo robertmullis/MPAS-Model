@@ -11,7 +11,6 @@ set(ATMOSPHERE_CORE_PHYSICS_SOURCES
     mpas_atmphys_driver_microphysics.F
     mpas_atmphys_driver_oml.F
     mpas_atmphys_finalize.F
-    mpas_atmphys_driver_cpl.F
     mpas_atmphys_functions.F
     mpas_atmphys_init_microphysics.F
     mpas_atmphys_interface.F
@@ -399,7 +398,3 @@ target_link_libraries(mpas_atmosphere_build_tables PUBLIC core_atmosphere)
 mpas_fortran_target(mpas_atmosphere_build_tables)
 install(TARGETS mpas_atmosphere_build_tables EXPORT ${PROJECT_NAME}ExportsCore
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-if (MPAS_NUOPC)
-  add_subdirectory(couple/nuopc)
-endif()

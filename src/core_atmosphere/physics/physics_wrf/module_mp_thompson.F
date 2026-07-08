@@ -4473,7 +4473,7 @@
 !     --- CONTINUED FRACTION REPRESENTATION AS GAMMCF.  ALSO RETURNS
 !     --- LN(GAMMA(A)) AS GLN.  THE CONTINUED FRACTION IS EVALUATED BY
 !     --- A MODIFIED LENTZ METHOD.
-!     --- USES GAMMLN
+!     --- USES LOG_GAMMA
       IMPLICIT NONE
       INTEGER, PARAMETER:: ITMAX=100
       REAL, PARAMETER:: gEPS=3.E-7
@@ -4482,7 +4482,7 @@
       REAL:: GAMMCF,GLN
       INTEGER:: I
       REAL:: AN,B,C,D,DEL,H
-      GLN=GAMMLN(A)
+      GLN=LOG_GAMMA(A)
       B=X+1.-A
       C=1./FPMIN
       D=1./B
@@ -4508,7 +4508,7 @@
 !     --- RETURNS THE INCOMPLETE GAMMA FUNCTION P(A,X) EVALUATED BY ITS
 !     --- ITS SERIES REPRESENTATION AS GAMSER.  ALSO RETURNS LN(GAMMA(A)) 
 !     --- AS GLN.
-!     --- USES GAMMLN
+!     --- USES LOG_GAMMA
       IMPLICIT NONE
       INTEGER, PARAMETER:: ITMAX=100
       REAL, PARAMETER:: gEPS=3.E-7
@@ -4516,7 +4516,7 @@
       REAL:: GAMSER,GLN
       INTEGER:: N
       REAL:: AP,DEL,SUM
-      GLN=GAMMLN(A)
+      GLN=LOG_GAMMA(A)
       IF(X.LE.0.)THEN
         IF(X.LT.0.) PRINT *, 'X < 0 IN GSER'
         GAMSER=0.
@@ -4534,31 +4534,6 @@
       PRINT *,'A TOO LARGE, ITMAX TOO SMALL IN GSER'
  1    GAMSER=SUM*EXP(-X+A*LOG(X)-GLN)
       END SUBROUTINE GSER
-!  (C) Copr. 1986-92 Numerical Recipes Software 2.02
-!+---+-----------------------------------------------------------------+
-      REAL FUNCTION GAMMLN(XX)
-!     --- RETURNS THE VALUE LN(GAMMA(XX)) FOR XX > 0.
-      IMPLICIT NONE
-      REAL, INTENT(IN):: XX
-      DOUBLE PRECISION, PARAMETER:: STP = 2.5066282746310005D0
-      DOUBLE PRECISION, DIMENSION(6), PARAMETER:: &
-               COF = (/76.18009172947146D0, -86.50532032941677D0, &
-                       24.01409824083091D0, -1.231739572450155D0, &
-                      .1208650973866179D-2, -.5395239384953D-5/)
-      DOUBLE PRECISION:: SER,TMP,X,Y
-      INTEGER:: J
-
-      X=XX
-      Y=X
-      TMP=X+5.5D0
-      TMP=(X+0.5D0)*LOG(TMP)-TMP
-      SER=1.000000000190015D0
-      DO 11 J=1,6
-        Y=Y+1.D0
-        SER=SER+COF(J)/Y
-11    CONTINUE
-      GAMMLN=TMP+LOG(STP*SER/X)
-      END FUNCTION GAMMLN
 !  (C) Copr. 1986-92 Numerical Recipes Software 2.02
 !+---+-----------------------------------------------------------------+
       REAL FUNCTION GAMMP(A,X)
@@ -4587,7 +4562,7 @@
       IMPLICIT NONE
       REAL, INTENT(IN):: y
 
-      WGAMMA = EXP(GAMMLN(y))
+      WGAMMA = EXP(LOG_GAMMA(y))
 
       END FUNCTION WGAMMA
 !+---+-----------------------------------------------------------------+
